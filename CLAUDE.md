@@ -1,62 +1,53 @@
-# FOUNDER OS (v2, on BusinessOS)
+# FounderOS (on GladOS): project notes for coding agents
 
-Personal OS / AI agent command center for a single person company. The Founder
-OS operator views run on the BusinessOS stack: Go backend, SvelteKit 2 frontend,
-PostgreSQL + Redis, and the bundled Elixir Optimal Engine as the only memory
-layer. Platform-wide rules live in `AGENTS.md` (BusinessOS); this file covers
-what is Founder OS specific.
+Read this first. Same rules apply to any agent (see AGENTS.md).
 
-## Commands
+## What this is
+A Next.js 14 (app router) + SQLite personal operating system. One database
+(`lib/db.ts`, opened via `lib/data.ts`), typed with zod schemas in
+`lib/schemas.ts`. Pages under `app/`, shared UI under `components/`, domain
+logic and connectors under `lib/`. Tests are vitest (`tests/`), including
+`smoke.test.ts` (every page renders) and `smoke-api.test.ts` (every GET route
+answers 200).
 
-```bash
-BUSINESSOS_HEADLESS=1 make dev-local   # whole stack; ports in .env.dev
-make demo OWNER=<registered email>     # workspaces + demo data (idempotent)
-make dev-local-status | dev-local-stop
-cd frontend && npx vitest run src/lib/founderos "src/routes/(founderos)"
-cd frontend && npx svelte-check --threshold error
-cd desktop/backend-go && go test ./internal/founderos/... ./cmd/...
-```
+FounderOS v3 is the GladOS codebase plus two things of its own:
+- `founderos/`: the FounderOS v1 Agents board and Social pages (`app/agents`,
+  `app/social`) and the UI they need. They read GladOS's database and
+  connectors; nothing in `founderos/` has its own data layer.
+- `lib/demo/`: the demo company. A fresh clone runs in demo mode (Filming, in
+  GladOS's words) and `lib/demo/store.ts` builds `demo-data/` from it on first
+  start. Demo rows never go into `data/`.
 
-## Where Founder OS lives
+## Project board
+`docs/PROJECTS.md` is the live board of what is being built here, its
+state, and what each step is waiting on. Read it at the start of every
+session, right after this file. Update it before the session ends whenever
+a step changes state, a blocker clears, or a new project starts. Absolute
+dates only. Its `## Checklist` section is rendered under the terminal input by
+the status line: keep it in sync with the tables (tick items when done, add
+new ones, `!` prefix = waiting on the operator). Multi-step projects have a folder
+under `docs/projects/<name>/` with `TASKS.md`; when the operator picks a project,
+read its folder first and brief them from it. Shipped projects move to
+`docs/projects/_done/`, never deleted.
 
-- Views: `frontend/src/routes/(founderos)/os/<view>/+page.svelte`, components and
-  logic in `frontend/src/lib/founderos/pages/<view>/`. Shared kit (Slab, SlabCard,
-  BigStat, MeterStack, motion) in `lib/founderos/kit`, chrome (Sidebar, Topbar,
-  CommandPalette, Conductor, cohort invite) in `lib/founderos/chrome`.
-- Navigation: `lib/founderos/nav.ts` is the single source (sidebar, palette digits,
-  module catalog, page-existence test). v1's order; G-Brain is "Brain".
-- Every view fetches `founderosFetch('/pages/<view>')` → Go
-  `GET /api/founderos/pages/<view>` (`internal/founderos/api/page_<view>.go`,
-  builders in `internal/founderos/pages/<view>/`).
-- Data: `founderos_*` tables (migrations `internal/database/migrations/16x_*`),
-  loaded from `internal/founderos/seed/demo/*.sql` by `cmd/founderos-seed` (ETL in
-  `internal/founderos/etl`). Relative dates (funnel, agent runs) move to today on
-  every seed.
-- Memory: the Optimal Engine only, via `internal/founderos/memory` and
-  `config/founderos/engine-topology.yaml` (one `local` engine, four workspaces:
-  founderos=HQ, vantage, launchpad-cohort, personal). Do not reintroduce G-Brain.
+## House rules
+- **Honest or absent.** No placeholder metrics, fake "connected" states, or
+  demo text dressed as real data. An unconfigured integration shows a
+  *Not configured* badge and a *Set up* link (`SetupLink` / `setupHrefFor`;
+  `tests/setup-links.test.ts` enforces it).
+- **Never commit secrets.** Only `.env.example` is tracked. Keys are read
+  through `lib/creds.ts`.
+- **No emojis in UI.** Inline stroke icons only.
+- **Every colour is a token** in `app/globals.css`; no raw hex in components.
+- Keep the seed structural (`lib/seed.ts` seeds departments only): real data
+  (`data/`) starts blank. Demo content belongs in `lib/demo/` and only ever
+  reaches `demo-data/`.
+- Run `npm test` and `npm run typecheck` before claiming a change works.
 
-## Rules
-
-- **Demo-first, real-ready.** New data = migration + ETL spec + seed fixture +
-  page builder + test. Pages never query around the builders.
-- **Honest states.** A connector is `connected`, `not_configured` or `error`,
-  never faked. An unconfigured connector answers 200 with a not-configured state,
-  never a 5xx or a console error.
-- **Credentials** come from the process env, `~/.founderos/.env`, or planted keys.
-  Never read other tools' credential files; never commit keys.
-- **Writes and crons** are off unless `FOUNDEROS_WRITES=1` / `FOUNDEROS_CRONS=1`.
-- **TDD**: failing test first (vitest next to the component, `go test` next to the
-  Go code). Keep `go test`, vitest and `svelte-check` (0 errors) green.
-- **The UI is v1's.** Founder OS v1 (tag `v1-nextjs`) is the reference for layout,
-  copy and behaviour of every view. The demo operator is Alex; the ventures are
-  Vantage (#00ffaa) and Launchpad Cohort (#d9263f). No real personal data, ever.
-- **Theme**: Monolith Signal is the default (black, white accent, color means
-  status only); JetBrains Mono everywhere; square corners, hairline borders.
-
-## Multi-agent etiquette
-
-- Commit small checkpoints often; run the gates before claiming done.
-- Don't stop another session's dev stack; use your own ports via `.env.dev`.
-- The dev launcher ignores `OPTIMAL_ENGINE_*` from your shell profile; point it at
-  other engine data only with `FOUNDEROS_ENGINE_ROOT`.
+## Env
+`GLADOS_DEFAULT_MODE` (`demo` unless set to `real`: what a fresh clone opens
+on), `GLADOS_DB` (db path), `GLADOS_HOST` (bind address; loopback until a password
+exists), `GLADOS_PASSWORD_HASH` + `GLADOS_SESSION_SECRET` (written by Setup →
+Security, never hand-set),
+`BRAIN_PROVIDER` / `GBRAIN_BIN` / `GBRAIN_STORE` (brain), plus connector keys
+listed in `.env.example`.
